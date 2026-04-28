@@ -4,7 +4,3 @@ pandas
 numpy
 networkx
 folium
-geopandas
-fiona
-shapely
-pyproj
