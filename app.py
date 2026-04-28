@@ -25,7 +25,7 @@ def cargar_datos():
 
     mines_4326 = None
     try:
-        mines_gdf = gpd.read_file("mapa_minas.gpkg", layer="Mina")
+        mines_gdf = gpd.read_file("minas_light.geojson")
         mines_4326 = mines_gdf.to_crs(epsg=4326).copy()
         centroids = mines_4326.geometry.centroid
         mines_4326["lat"] = centroids.y
