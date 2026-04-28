@@ -13,6 +13,12 @@ st.set_page_config(
 )
 
 
+ACTIVE_COLOR = "#d32f2f"
+INACTIVE_COLOR = "#9aa0a6"
+EDGE_COLOR = "#8B0000"
+MINE_COLOR = "#FFD700"
+
+
 def to_list(x):
     if isinstance(x, list):
         return [str(s).strip() for s in x if str(s).strip()]
@@ -25,7 +31,6 @@ def to_list(x):
                 return [str(s).strip() for s in parsed if str(s).strip()]
         except Exception:
             pass
-
         return [s.strip() for s in x.split(",") if s.strip()]
 
     return []
@@ -47,7 +52,6 @@ def load_data():
 def get_coords(df_location):
     base = df_location.dropna(subset=["lat", "lon"]).copy()
     base = base.drop_duplicates(subset=["Pueblos_actualizados"], keep="first")
-
     return base.set_index("Pueblos_actualizados")[["lat", "lon"]].to_dict("index")
 
 
@@ -81,49 +85,35 @@ def graph_by_semester(df, semester):
 def make_map(
     G,
     coords,
-    title="Mining conflict network",
     df_mines=None,
     edge_base=0.6,
     edge_scale=0.7,
     edge_max_mult=6,
-    edge_color="#8B0000",
     opacity=0.5,
-    active_color="#d32f2f",
-    inactive_color="#9aa0a6",
     inactive_radius=4,
     active_radius=6,
 ):
     m = folium.Map(
         location=[-9.19, -75.0152],
         zoom_start=6,
-        tiles="CartoDB positron"
+        tiles="CartoDB positron",
+        control_scale=True
     )
 
-    layer_all_towns = folium.FeatureGroup(
-        name="All towns with coordinates",
-        show=True
-    )
-
-    layer_active_towns = folium.FeatureGroup(
-        name="Towns in selected semester",
-        show=True
-    )
-
-    layer_connections = folium.FeatureGroup(
-        name="Connections in selected semester",
-        show=True
-    )
+    layer_all_towns = folium.FeatureGroup(name="All towns", show=True, control=False)
+    layer_connections = folium.FeatureGroup(name="Connections", show=True, control=False)
+    layer_active_towns = folium.FeatureGroup(name="Active towns", show=True, control=False)
 
     for town, c in coords.items():
         folium.CircleMarker(
             location=[c["lat"], c["lon"]],
             radius=inactive_radius,
-            color=inactive_color,
+            color=INACTIVE_COLOR,
             fill=True,
-            fill_color=inactive_color,
+            fill_color=INACTIVE_COLOR,
             fill_opacity=0.8,
             opacity=0.8,
-            tooltip=town
+            tooltip=f"Inactive town: {town}"
         ).add_to(layer_all_towns)
 
     active_bounds = []
@@ -142,7 +132,7 @@ def make_map(
                 pts,
                 weight=edge_base + edge_scale * min(weight, edge_max_mult),
                 opacity=opacity,
-                color=edge_color,
+                color=EDGE_COLOR,
                 tooltip=f"{u} — {v} | Conflicts: {weight} | Mines: {mines}"
             ).add_to(layer_connections)
 
@@ -155,21 +145,18 @@ def make_map(
             folium.CircleMarker(
                 location=[lat, lon],
                 radius=active_radius,
-                color=active_color,
+                color=ACTIVE_COLOR,
                 fill=True,
-                fill_color=active_color,
+                fill_color=ACTIVE_COLOR,
                 fill_opacity=0.95,
                 opacity=0.95,
-                tooltip=f"{town} (active)"
+                tooltip=f"Active town: {town}"
             ).add_to(layer_active_towns)
 
             active_bounds.append((lat, lon))
 
     if df_mines is not None:
-        layer_mines = folium.FeatureGroup(
-            name="Mines",
-            show=True
-        )
+        layer_mines = folium.FeatureGroup(name="Mines", show=True, control=False)
 
         for _, row in df_mines.dropna(subset=["lat", "lon"]).iterrows():
             lat = row["lat"]
@@ -192,7 +179,7 @@ def make_map(
                 height: 0;
                 border-left: {size}px solid transparent;
                 border-right: {size}px solid transparent;
-                border-top: {size * 1.5}px solid #FFD700;
+                border-top: {size * 1.5}px solid {MINE_COLOR};
             "></div>
             """
 
@@ -200,6 +187,7 @@ def make_map(
                 location=[lat, lon],
                 icon=DivIcon(html=triangle_icon),
                 popup=folium.Popup(popup_html, max_width=260),
+                tooltip="Mine"
             ).add_to(layer_mines)
 
         layer_mines.add_to(m)
@@ -207,64 +195,6 @@ def make_map(
     layer_all_towns.add_to(m)
     layer_connections.add_to(m)
     layer_active_towns.add_to(m)
-
-    folium.LayerControl(collapsed=False).add_to(m)
-
-    legend_html = f"""
-    <div style="
-        position: fixed;
-        bottom: 18px;
-        right: 18px;
-        z-index: 9999;
-        background: rgba(255,255,255,0.95);
-        padding: 12px;
-        border: 1px solid #ccc;
-        border-radius: 10px;
-        font-size: 13px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-        pointer-events: none;
-    ">
-      <div style="font-weight:700; margin-bottom:6px">
-        Legend
-      </div>
-
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-        <span style="width:10px; height:10px; background:{inactive_color}; border-radius:50%; display:inline-block;"></span>
-        <span>All towns</span>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-        <span style="width:10px; height:10px; background:{active_color}; border-radius:50%; display:inline-block;"></span>
-        <span>Active towns</span>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-        <span style="width:20px; height:2px; background:{edge_color}; display:inline-block;"></span>
-        <span>Connections</span>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 10px solid #FFD700;
-            display:inline-block;
-        "></span>
-        <span>Mines</span>
-      </div>
-    </div>
-    """
-
-    folium.map.Marker(
-        [-17.8, -81.3],
-        icon=DivIcon(
-            icon_size=(0, 0),
-            icon_anchor=(0, 0),
-            html=legend_html
-        )
-    ).add_to(m)
 
     if active_bounds:
         m.fit_bounds(active_bounds)
@@ -281,15 +211,9 @@ st.sidebar.header("Filters")
 
 semesters = sorted(df["Semestre"].dropna().astype(str).unique())
 
-semester = st.sidebar.selectbox(
-    "Semester",
-    semesters
-)
+semester = st.sidebar.selectbox("Semester", semesters)
 
-show_mines = st.sidebar.checkbox(
-    "Show mines",
-    value=True
-)
+show_mines = st.sidebar.checkbox("Show mines", value=True)
 
 edge_base = st.sidebar.slider(
     "Base thickness",
@@ -307,12 +231,70 @@ edge_scale = st.sidebar.slider(
     step=0.1
 )
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("Legend")
+
+st.sidebar.markdown(
+    f"""
+    <div style="font-size:15px; line-height:1.8;">
+        <div>
+            <span style="
+                display:inline-block;
+                width:12px;
+                height:12px;
+                border-radius:50%;
+                background:{ACTIVE_COLOR};
+                margin-right:8px;
+            "></span>
+            Active nodes: red circles
+        </div>
+
+        <div>
+            <span style="
+                display:inline-block;
+                width:12px;
+                height:12px;
+                border-radius:50%;
+                background:{INACTIVE_COLOR};
+                margin-right:8px;
+            "></span>
+            Inactive nodes: gray circles
+        </div>
+
+        <div>
+            <span style="
+                display:inline-block;
+                width:0;
+                height:0;
+                border-left:7px solid transparent;
+                border-right:7px solid transparent;
+                border-top:12px solid {MINE_COLOR};
+                margin-right:8px;
+            "></span>
+            Mines: yellow triangles
+        </div>
+
+        <div>
+            <span style="
+                display:inline-block;
+                width:22px;
+                height:3px;
+                background:{EDGE_COLOR};
+                margin-right:8px;
+                vertical-align:middle;
+            "></span>
+            Connections: red lines between towns that appear in the same conflict record
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 G, df_semester = graph_by_semester(df, semester)
 
 m = make_map(
     G,
     coords,
-    title=f"Network by semester: {semester}",
     df_mines=df_mines if show_mines else None,
     edge_base=edge_base,
     edge_scale=edge_scale,
@@ -320,7 +302,7 @@ m = make_map(
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Active towns", len(G.nodes))
+col1.metric("Active nodes", len(G.nodes))
 col2.metric("Connections", len(G.edges))
 col3.metric("Records in semester", len(df_semester))
 
