@@ -1,6 +1,5 @@
 import ast
 import pandas as pd
-import numpy as np
 import networkx as nx
 import folium
 import streamlit as st
@@ -9,7 +8,7 @@ from streamlit_folium import st_folium
 
 
 st.set_page_config(
-    page_title="Mapa de conflictos mineros",
+    page_title="Mining Conflict Map",
     layout="wide"
 )
 
@@ -33,66 +32,66 @@ def to_list(x):
 
 
 @st.cache_data
-def cargar_datos():
+def load_data():
     df = pd.read_csv("df_mapa.csv")
-    df_localizacion = pd.read_csv("df_localizacion.csv")
+    df_location = pd.read_csv("df_localizacion.csv")
 
     try:
-        df_minas = pd.read_csv("minas_light.csv")
+        df_mines = pd.read_csv("minas_light.csv")
     except Exception:
-        df_minas = None
+        df_mines = None
 
-    return df, df_localizacion, df_minas
+    return df, df_location, df_mines
 
 
-def coords_dict(df_localizacion):
-    base = df_localizacion.dropna(subset=["lat", "lon"]).copy()
+def get_coords(df_location):
+    base = df_location.dropna(subset=["lat", "lon"]).copy()
     base = base.drop_duplicates(subset=["Pueblos_actualizados"], keep="first")
 
     return base.set_index("Pueblos_actualizados")[["lat", "lon"]].to_dict("index")
 
 
-def grafo_por_semestre(df, semestre):
+def graph_by_semester(df, semester):
     use = df.copy()
     use["Pueblos_actualizados"] = use["Pueblos_actualizados"].apply(to_list)
-    use = use[use["Semestre"].astype(str) == str(semestre)].reset_index(drop=True)
+    use = use[use["Semestre"].astype(str) == str(semester)].reset_index(drop=True)
 
     G = nx.Graph()
 
     for _, row in use.iterrows():
-        pueblos = row["Pueblos_actualizados"]
-        mina = str(row.get("Minas", "Desconocida"))
+        towns = row["Pueblos_actualizados"]
+        mine = str(row.get("Minas", "Unknown"))
 
-        for p in pueblos:
-            G.add_node(p, tipo="pueblo_actualizado")
+        for town in towns:
+            G.add_node(town, type="town")
 
-        for i in range(len(pueblos)):
-            for j in range(i + 1, len(pueblos)):
-                u, v = pueblos[i], pueblos[j]
+        for i in range(len(towns)):
+            for j in range(i + 1, len(towns)):
+                u, v = towns[i], towns[j]
 
                 if G.has_edge(u, v):
-                    G[u][v]["peso"] += 1
-                    G[u][v]["minas"].add(mina)
+                    G[u][v]["weight"] += 1
+                    G[u][v]["mines"].add(mine)
                 else:
-                    G.add_edge(u, v, peso=1, minas={mina})
+                    G.add_edge(u, v, weight=1, mines={mine})
 
     return G, use
 
 
-def mapa_grafo(
+def make_map(
     G,
     coords,
-    titulo="Red de pueblos conectados por conflictos mineros",
-    df_minas=None,
+    title="Mining conflict network",
+    df_mines=None,
     edge_base=0.6,
     edge_scale=0.7,
     edge_max_mult=6,
     edge_color="#8B0000",
     opacity=0.5,
-    color_activo="#d32f2f",
-    color_inactivo="#9aa0a6",
-    radio_inactivo=4,
-    radio_activo=6,
+    active_color="#d32f2f",
+    inactive_color="#9aa0a6",
+    inactive_radius=4,
+    active_radius=6,
 ):
     m = folium.Map(
         location=[-9.19, -75.0152],
@@ -100,30 +99,32 @@ def mapa_grafo(
         tiles="CartoDB positron"
     )
 
-    layer_nodos_base = folium.FeatureGroup(
-        name="Todos los pueblos con coordenadas",
-        show=True
-    )
-    layer_nodos_activo = folium.FeatureGroup(
-        name="Pueblos del semestre seleccionado",
-        show=True
-    )
-    layer_aristas = folium.FeatureGroup(
-        name="Conexiones del semestre",
+    layer_all_towns = folium.FeatureGroup(
+        name="All towns with coordinates",
         show=True
     )
 
-    for n, c in coords.items():
+    layer_active_towns = folium.FeatureGroup(
+        name="Towns in selected semester",
+        show=True
+    )
+
+    layer_connections = folium.FeatureGroup(
+        name="Connections in selected semester",
+        show=True
+    )
+
+    for town, c in coords.items():
         folium.CircleMarker(
             location=[c["lat"], c["lon"]],
-            radius=radio_inactivo,
-            color=color_inactivo,
+            radius=inactive_radius,
+            color=inactive_color,
             fill=True,
-            fill_color=color_inactivo,
+            fill_color=inactive_color,
             fill_opacity=0.8,
             opacity=0.8,
-            tooltip=n
-        ).add_to(layer_nodos_base)
+            tooltip=town
+        ).add_to(layer_all_towns)
 
     active_bounds = []
 
@@ -134,52 +135,55 @@ def mapa_grafo(
                 (coords[v]["lat"], coords[v]["lon"])
             ]
 
-            peso = data.get("peso", 1)
-            minas = ", ".join(sorted(map(str, data.get("minas", []))))
+            weight = data.get("weight", 1)
+            mines = ", ".join(sorted(map(str, data.get("mines", []))))
 
             folium.PolyLine(
                 pts,
-                weight=edge_base + edge_scale * min(peso, edge_max_mult),
+                weight=edge_base + edge_scale * min(weight, edge_max_mult),
                 opacity=opacity,
                 color=edge_color,
-                tooltip=f"{u} — {v} | Conflictos: {peso} | Minas: {minas}"
-            ).add_to(layer_aristas)
+                tooltip=f"{u} — {v} | Conflicts: {weight} | Mines: {mines}"
+            ).add_to(layer_connections)
 
             active_bounds.extend(pts)
 
-    for n in G.nodes:
-        if n in coords:
-            la, lo = coords[n]["lat"], coords[n]["lon"]
+    for town in G.nodes:
+        if town in coords:
+            lat, lon = coords[town]["lat"], coords[town]["lon"]
 
             folium.CircleMarker(
-                location=[la, lo],
-                radius=radio_activo,
-                color=color_activo,
+                location=[lat, lon],
+                radius=active_radius,
+                color=active_color,
                 fill=True,
-                fill_color=color_activo,
+                fill_color=active_color,
                 fill_opacity=0.95,
                 opacity=0.95,
-                tooltip=f"{n} activo"
-            ).add_to(layer_nodos_activo)
+                tooltip=f"{town} (active)"
+            ).add_to(layer_active_towns)
 
-            active_bounds.append((la, lo))
+            active_bounds.append((lat, lon))
 
-    if df_minas is not None:
-        layer_minas = folium.FeatureGroup(name="Minas", show=True)
+    if df_mines is not None:
+        layer_mines = folium.FeatureGroup(
+            name="Mines",
+            show=True
+        )
 
-        for _, row in df_minas.dropna(subset=["lat", "lon"]).iterrows():
+        for _, row in df_mines.dropna(subset=["lat", "lon"]).iterrows():
             lat = row["lat"]
             lon = row["lon"]
             size = int(row.get("radius", 10))
 
             popup_html = f"""
-            <b>Proyecto:</b> {row.get("PROYECTO", "N/A")}<br>
-            <b>Empresa:</b> {row.get("EMPRESA", "N/A")}<br>
-            <b>Área km²:</b> {row.get("AREAKM2", "N/A")}<br>
+            <b>Project:</b> {row.get("PROYECTO", "N/A")}<br>
+            <b>Company:</b> {row.get("EMPRESA", "N/A")}<br>
+            <b>Area (km²):</b> {row.get("AREAKM2", "N/A")}<br>
             <b>Has:</b> {row.get("HAS", "N/A")}<br>
-            <b>Zona:</b> {row.get("ZONA", "N/A")}<br>
+            <b>Zone:</b> {row.get("ZONA", "N/A")}<br>
             <b>ID:</b> {row.get("ID", "N/A")}<br>
-            <b>Capa:</b> {row.get("CAPA", "N/A")}
+            <b>Layer:</b> {row.get("CAPA", "N/A")}
             """
 
             triangle_icon = f"""
@@ -196,48 +200,50 @@ def mapa_grafo(
                 location=[lat, lon],
                 icon=DivIcon(html=triangle_icon),
                 popup=folium.Popup(popup_html, max_width=260),
-            ).add_to(layer_minas)
+            ).add_to(layer_mines)
 
-        layer_minas.add_to(m)
+        layer_mines.add_to(m)
 
-    layer_nodos_base.add_to(m)
-    layer_aristas.add_to(m)
-    layer_nodos_activo.add_to(m)
+    layer_all_towns.add_to(m)
+    layer_connections.add_to(m)
+    layer_active_towns.add_to(m)
 
     folium.LayerControl(collapsed=False).add_to(m)
 
-    leyenda_html = f"""
+    legend_html = f"""
     <div style="
         position: fixed;
         bottom: 18px;
         right: 18px;
         z-index: 9999;
         background: rgba(255,255,255,0.95);
-        padding: 10px 12px;
+        padding: 12px;
         border: 1px solid #ccc;
         border-radius: 10px;
         font-size: 13px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         pointer-events: none;
     ">
-      <div style="font-weight:700; margin-bottom:6px">{titulo}</div>
-
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
-        <span style="width:10px; height:10px; background:{color_inactivo}; border-radius:50%; display:inline-block;"></span>
-        <span>Todos los pueblos con coordenadas</span>
+      <div style="font-weight:700; margin-bottom:6px">
+        Legend
       </div>
 
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
-        <span style="width:10px; height:10px; background:{color_activo}; border-radius:50%; display:inline-block;"></span>
-        <span>Pueblos del semestre seleccionado</span>
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <span style="width:10px; height:10px; background:{inactive_color}; border-radius:50%; display:inline-block;"></span>
+        <span>All towns</span>
       </div>
 
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+        <span style="width:10px; height:10px; background:{active_color}; border-radius:50%; display:inline-block;"></span>
+        <span>Active towns</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
         <span style="width:20px; height:2px; background:{edge_color}; display:inline-block;"></span>
-        <span>Conexiones del semestre</span>
+        <span>Connections</span>
       </div>
 
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; align-items:center; gap:8px;">
         <span style="
             width: 0;
             height: 0;
@@ -246,14 +252,18 @@ def mapa_grafo(
             border-top: 10px solid #FFD700;
             display:inline-block;
         "></span>
-        <span>Minas</span>
+        <span>Mines</span>
       </div>
     </div>
     """
 
     folium.map.Marker(
         [-17.8, -81.3],
-        icon=DivIcon(icon_size=(0, 0), icon_anchor=(0, 0), html=leyenda_html)
+        icon=DivIcon(
+            icon_size=(0, 0),
+            icon_anchor=(0, 0),
+            html=legend_html
+        )
     ).add_to(m)
 
     if active_bounds:
@@ -262,27 +272,27 @@ def mapa_grafo(
     return m
 
 
-df, df_localizacion, df_minas = cargar_datos()
-coords = coords_dict(df_localizacion)
+df, df_location, df_mines = load_data()
+coords = get_coords(df_location)
 
-st.title("Mapa de conflictos mineros por semestre")
+st.title("Mining conflict map by semester")
 
-st.sidebar.header("Filtros")
+st.sidebar.header("Filters")
 
-semestres = sorted(df["Semestre"].dropna().astype(str).unique())
+semesters = sorted(df["Semestre"].dropna().astype(str).unique())
 
-semestre = st.sidebar.selectbox(
-    "Semestre",
-    semestres
+semester = st.sidebar.selectbox(
+    "Semester",
+    semesters
 )
 
-mostrar_minas = st.sidebar.checkbox(
-    "Mostrar minas",
+show_mines = st.sidebar.checkbox(
+    "Show mines",
     value=True
 )
 
 edge_base = st.sidebar.slider(
-    "Grosor base",
+    "Base thickness",
     min_value=0.1,
     max_value=2.0,
     value=0.6,
@@ -290,31 +300,31 @@ edge_base = st.sidebar.slider(
 )
 
 edge_scale = st.sidebar.slider(
-    "Escala por peso",
+    "Weight scale",
     min_value=0.1,
     max_value=2.0,
     value=0.7,
     step=0.1
 )
 
-G, df_sem = grafo_por_semestre(df, semestre)
+G, df_semester = graph_by_semester(df, semester)
 
-m = mapa_grafo(
+m = make_map(
     G,
     coords,
-    titulo=f"Red por semestre: {semestre}",
-    df_minas=df_minas if mostrar_minas else None,
+    title=f"Network by semester: {semester}",
+    df_mines=df_mines if show_mines else None,
     edge_base=edge_base,
     edge_scale=edge_scale,
 )
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Pueblos activos", len(G.nodes))
-col2.metric("Conexiones", len(G.edges))
-col3.metric("Registros del semestre", len(df_sem))
+col1.metric("Active towns", len(G.nodes))
+col2.metric("Connections", len(G.edges))
+col3.metric("Records in semester", len(df_semester))
 
-st.subheader(f"Semestre: {semestre}")
+st.subheader(f"Semester: {semester}")
 
 st_folium(
     m,
