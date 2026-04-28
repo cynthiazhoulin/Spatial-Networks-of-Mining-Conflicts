@@ -1,0 +1,18 @@
+{
+"type": "FeatureCollection",
+"name": "minas_light",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "PROYECTO": "Quellaveco", "EMPRESA": "ANGLO AMERICAN QUELLAVECO S.A", "AREAKM2": "11.46" }, "geometry": { "type": "Point", "coordinates": [ -70.65101942900742, -17.128498634811876 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Toromocho", "EMPRESA": "Minera Chinalco Peru S.A.", "AREAKM2": "20.858" }, "geometry": { "type": "Point", "coordinates": [ -76.15057816221082, -11.624941133085336 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Cerro Corona", "EMPRESA": "Gold Fields La Cima S.A.", "AREAKM2": "6.553" }, "geometry": { "type": "Point", "coordinates": [ -78.633701394107746, -6.765142037596328 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Antamina", "EMPRESA": "Compañía Minera Antamina S.A", "AREAKM2": "30.966" }, "geometry": { "type": "Point", "coordinates": [ -77.044873091656612, -9.553777828619314 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Antapaccay", "EMPRESA": "Glencore", "AREAKM2": "52.077" }, "geometry": { "type": "Point", "coordinates": [ -71.378265228242711, -14.960075396088323 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Yanacocha", "EMPRESA": "Compañía de Minas Buenaventura S.A.A/ Minera Yan", "AREAKM2": "81.662" }, "geometry": { "type": "Point", "coordinates": [ -78.523621257055368, -6.987079298600836 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Atacocha", "EMPRESA": "Compañía Minera Milpo S.A.A", "AREAKM2": "2.692" }, "geometry": { "type": "Point", "coordinates": [ -76.213291967532939, -10.579960802963805 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Tintaya", "EMPRESA": "Tintaya", "AREAKM2": "52.077" }, "geometry": { "type": "Point", "coordinates": [ -71.32733288903998, -14.897950367012864 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Pucamarca", "EMPRESA": "MINSUR S.A.", "AREAKM2": "3.586" }, "geometry": { "type": "Point", "coordinates": [ -69.812266875642351, -17.820871979392482 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Chungar-Animon", "EMPRESA": "COMPAÑIA MINERA CHUNGAR S.A.C.", "AREAKM2": "0.873" }, "geometry": { "type": "Point", "coordinates": [ -76.425499968509669, -11.026348613523544 ] } },
+{ "type": "Feature", "properties": { "PROYECTO": "Ferrobamba", "EMPRESA": "MMG - Las Bambas", "AREAKM2": "36.008" }, "geometry": { "type": "Point", "coordinates": [ -72.305158289101328, -14.083223952577566 ] } }
+]
+}
