@@ -78,6 +78,30 @@ def graph_by_semester(df, semester):
     return G, use
 
 
+def add_label(layer, lat, lon, text):
+    folium.Marker(
+        location=[lat, lon],
+        icon=DivIcon(
+            icon_size=(150, 20),
+            icon_anchor=(-8, 10),
+            html=f"""
+            <div style="
+                font-size:10px;
+                font-weight:600;
+                color:#111;
+                background:rgba(255,255,255,0.75);
+                padding:1px 4px;
+                border-radius:4px;
+                white-space:nowrap;
+                box-shadow:0 1px 2px rgba(0,0,0,0.15);
+            ">
+                {text}
+            </div>
+            """
+        )
+    ).add_to(layer)
+
+
 def make_map(G, coords, df_mines=None):
     m = folium.Map(
         location=[-9.19, -75.0152],
@@ -94,31 +118,18 @@ def make_map(G, coords, df_mines=None):
     layer_all = folium.FeatureGroup(name="Inactive nodes", show=True)
     layer_active = folium.FeatureGroup(name="Active nodes", show=True)
     layer_edges = folium.FeatureGroup(name="Connections", show=True)
+    layer_labels = folium.FeatureGroup(name="Labels", show=True)
 
     for town, c in coords.items():
         folium.CircleMarker(
-        location=[lat, lon],
-        radius=6,
-        color=ACTIVE_COLOR,
-        fill=True,
-        fill_color=ACTIVE_COLOR,
-        fill_opacity=0.95,
-    ).add_to(layer_active)
-    
-        folium.Marker(
-            location=[lat, lon],
-            icon=DivIcon(
-                html=f"""
-                <div style="
-                    font-size:10px;
-                    color:black;
-                    text-shadow:1px 1px 2px white;
-                ">
-                    {town}
-                </div>
-                """
-            )
-        ).add_to(layer_active)
+            location=[c["lat"], c["lon"]],
+            radius=4,
+            color=INACTIVE_COLOR,
+            fill=True,
+            fill_color=INACTIVE_COLOR,
+            fill_opacity=0.8,
+            tooltip=f"Inactive town: {town}",
+        ).add_to(layer_all)
 
     bounds = []
 
@@ -130,12 +141,14 @@ def make_map(G, coords, df_mines=None):
             ]
 
             w = data.get("weight", 1)
+            mines = ", ".join(sorted(map(str, data.get("mines", []))))
 
             folium.PolyLine(
                 pts,
                 weight=1 + 0.7 * min(w, 6),
                 color=EDGE_COLOR,
                 opacity=0.5,
+                tooltip=f"{u} — {v} | Conflicts: {w} | Mines: {mines}",
             ).add_to(layer_edges)
 
             bounds.extend(pts)
@@ -151,8 +164,10 @@ def make_map(G, coords, df_mines=None):
                 fill=True,
                 fill_color=ACTIVE_COLOR,
                 fill_opacity=0.95,
+                tooltip=f"Active town: {town}",
             ).add_to(layer_active)
 
+            add_label(layer_labels, lat, lon, town)
             bounds.append((lat, lon))
 
     if df_mines is not None:
@@ -163,25 +178,45 @@ def make_map(G, coords, df_mines=None):
             lon = row["lon"]
             size = int(row.get("radius", 10))
 
+            mine_name = (
+                row.get("PROYECTO")
+                or row.get("EMPRESA")
+                or row.get("ID")
+                or "Mine"
+            )
+
+            popup_html = f"""
+            <b>Project:</b> {row.get("PROYECTO", "N/A")}<br>
+            <b>Company:</b> {row.get("EMPRESA", "N/A")}<br>
+            <b>Area (km²):</b> {row.get("AREAKM2", "N/A")}<br>
+            <b>Zone:</b> {row.get("ZONA", "N/A")}
+            """
+
             triangle = f"""
             <div style="
-                width:0;height:0;
+                width:0;
+                height:0;
                 border-left:{size}px solid transparent;
                 border-right:{size}px solid transparent;
-                border-top:{size*1.5}px solid {MINE_COLOR};
+                border-top:{size * 1.5}px solid {MINE_COLOR};
             "></div>
             """
 
             folium.Marker(
                 location=[lat, lon],
                 icon=DivIcon(html=triangle),
+                tooltip=f"Mine: {mine_name}",
+                popup=folium.Popup(popup_html, max_width=260),
             ).add_to(layer_mines)
+
+            add_label(layer_labels, lat, lon, mine_name)
 
         layer_mines.add_to(m)
 
     layer_all.add_to(m)
     layer_edges.add_to(m)
     layer_active.add_to(m)
+    layer_labels.add_to(m)
 
     folium.LayerControl(collapsed=False).add_to(m)
 
@@ -199,7 +234,6 @@ st.title("Mining conflict map by semester")
 st.sidebar.header("Filters")
 
 semesters = sorted(df["Semestre"].dropna().astype(str).unique())
-
 semester = st.sidebar.selectbox("Semester", semesters)
 
 show_mines = st.sidebar.checkbox("Show mines", True)
@@ -208,25 +242,24 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("Legend")
 
 st.sidebar.markdown(
-    f'<span style="color:{ACTIVE_COLOR}; font-size:20px;">●</span> Active nodes (red circles)',
+    f'<span style="color:{ACTIVE_COLOR}; font-size:20px;">●</span> Active towns: red circles',
     unsafe_allow_html=True
 )
 
 st.sidebar.markdown(
-    f'<span style="color:{INACTIVE_COLOR}; font-size:20px;">●</span> Inactive nodes (gray circles)',
+    f'<span style="color:{INACTIVE_COLOR}; font-size:20px;">●</span> Inactive towns: gray circles',
     unsafe_allow_html=True
 )
 
 st.sidebar.markdown(
-    f'<span style="color:{MINE_COLOR}; font-size:20px;">▼</span> Mines (yellow triangles)',
+    f'<span style="color:{MINE_COLOR}; font-size:20px;">▼</span> Mines: yellow triangles',
     unsafe_allow_html=True
 )
 
 st.sidebar.markdown(
-    f'<span style="color:{EDGE_COLOR}; font-size:20px;">━</span> Connections (shared conflicts)',
+    f'<span style="color:{EDGE_COLOR}; font-size:20px;">━</span> Connections: shared conflict records',
     unsafe_allow_html=True
 )
-
 
 G, df_sem = graph_by_semester(df, semester)
 
@@ -237,8 +270,7 @@ m = make_map(
 )
 
 col1, col2 = st.columns(2)
-
-col1.metric("Active nodes", len(G.nodes))
+col1.metric("Active towns", len(G.nodes))
 col2.metric("Connections", len(G.edges))
 
 st.subheader(f"Semester: {semester}")
