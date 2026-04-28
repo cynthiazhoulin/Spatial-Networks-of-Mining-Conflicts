@@ -97,13 +97,28 @@ def make_map(G, coords, df_mines=None):
 
     for town, c in coords.items():
         folium.CircleMarker(
-            location=[c["lat"], c["lon"]],
-            radius=4,
-            color=INACTIVE_COLOR,
-            fill=True,
-            fill_color=INACTIVE_COLOR,
-            fill_opacity=0.8,
-        ).add_to(layer_all)
+        location=[lat, lon],
+        radius=6,
+        color=ACTIVE_COLOR,
+        fill=True,
+        fill_color=ACTIVE_COLOR,
+        fill_opacity=0.95,
+    ).add_to(layer_active)
+    
+        folium.Marker(
+            location=[lat, lon],
+            icon=DivIcon(
+                html=f"""
+                <div style="
+                    font-size:10px;
+                    color:black;
+                    text-shadow:1px 1px 2px white;
+                ">
+                    {town}
+                </div>
+                """
+            )
+        ).add_to(layer_active)
 
     bounds = []
 
