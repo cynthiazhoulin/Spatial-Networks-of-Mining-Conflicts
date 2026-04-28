@@ -78,22 +78,13 @@ def graph_by_semester(df, semester):
     return G, use
 
 
-def make_map(
-    G,
-    coords,
-    df_mines=None,
-    edge_base=0.6,
-    edge_scale=0.7,
-    edge_max_mult=6,
-    opacity=0.5,
-):
+def make_map(G, coords, df_mines=None):
     m = folium.Map(
         location=[-9.19, -75.0152],
         zoom_start=6,
         tiles=None
     )
 
-    # 🔥 Tile SIN nombre visible
     folium.TileLayer(
         tiles="CartoDB positron",
         name="",
@@ -104,7 +95,6 @@ def make_map(
     layer_active = folium.FeatureGroup(name="Active nodes", show=True)
     layer_edges = folium.FeatureGroup(name="Connections", show=True)
 
-    # nodos grises
     for town, c in coords.items():
         folium.CircleMarker(
             location=[c["lat"], c["lon"]],
@@ -117,7 +107,6 @@ def make_map(
 
     bounds = []
 
-    # aristas
     for u, v, data in G.edges(data=True):
         if u in coords and v in coords:
             pts = [
@@ -129,14 +118,13 @@ def make_map(
 
             folium.PolyLine(
                 pts,
-                weight=edge_base + edge_scale * min(w, edge_max_mult),
+                weight=1 + 0.7 * min(w, 6),
                 color=EDGE_COLOR,
-                opacity=opacity,
+                opacity=0.5,
             ).add_to(layer_edges)
 
             bounds.extend(pts)
 
-    # nodos activos rojos
     for town in G.nodes:
         if town in coords:
             lat, lon = coords[town]["lat"], coords[town]["lon"]
@@ -152,7 +140,6 @@ def make_map(
 
             bounds.append((lat, lon))
 
-    # minas
     if df_mines is not None:
         layer_mines = folium.FeatureGroup(name="Mines", show=True)
 
@@ -189,8 +176,6 @@ def make_map(
     return m
 
 
-# ===== APP =====
-
 df, df_location, df_mines = load_data()
 coords = get_coords(df_location)
 
@@ -204,10 +189,6 @@ semester = st.sidebar.selectbox("Semester", semesters)
 
 show_mines = st.sidebar.checkbox("Show mines", True)
 
-edge_base = st.sidebar.slider("Base thickness", 0.1, 2.0, 0.6, 0.1)
-edge_scale = st.sidebar.slider("Weight scale", 0.1, 2.0, 0.7, 0.1)
-
-# ===== LEYENDA LIMPIA =====
 st.sidebar.markdown("---")
 st.sidebar.subheader("Legend")
 
@@ -231,7 +212,6 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 
-# ===== MAP =====
 
 G, df_sem = graph_by_semester(df, semester)
 
@@ -239,15 +219,17 @@ m = make_map(
     G,
     coords,
     df_mines=df_mines if show_mines else None,
-    edge_base=edge_base,
-    edge_scale=edge_scale,
 )
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
+
 col1.metric("Active nodes", len(G.nodes))
 col2.metric("Connections", len(G.edges))
-col3.metric("Records", len(df_sem))
 
 st.subheader(f"Semester: {semester}")
 
-st_folium(m, height=720)
+st_folium(
+    m,
+    height=750,
+    use_container_width=True
+)
